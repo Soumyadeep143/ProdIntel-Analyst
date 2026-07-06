@@ -1,5 +1,14 @@
 # Product Intelligence Analyst (SaaS Decision Support Platform)
 
+![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)
+![React](https://img.shields.io/badge/react-%23202328.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)
+![Vite](https://img.shields.io/badge/vite-%23646CFF.svg?style=for-the-badge&logo=vite&logoColor=white)
+![SQLite](https://img.shields.io/badge/sqlite-%2307405e.svg?style=for-the-badge&logo=sqlite&logoColor=white)
+![ChromaDB](https://img.shields.io/badge/ChromaDB-0080FF?style=for-the-badge)
+![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
+![Llama 3.3](https://img.shields.io/badge/Llama_3.3-orange?style=for-the-badge)
+
 An autonomous AI-powered Product Intelligence Analyst for SaaS companies that ingests support tickets, GitHub issues, product documents (PRDs), meeting logs, and release notes to help teams analyze complaints, track trends, review system health, and generate deep research reports.
 
 The reasoning stack is powered by **Llama 3.3** via **Groq** for sub-second, highly structured agent inferences, combined with a local hybrid semantic vector (ChromaDB + SQLite) search engine.

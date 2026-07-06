@@ -5,35 +5,75 @@
 
 ## 1. High-Level Layers
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                         Frontend (Phase 4)                    │
-│        Chat UI · Dashboards · Report Viewer · Auth            │
-└───────────────────────────▲────────────────────────────────────┘
-                             │ REST/GraphQL API
-┌───────────────────────────┴────────────────────────────────────┐
-│                         API Layer (FastAPI) [CONFIRM]           │
-│  /ingest  /query  /research  /report  /memory  /health  /evals  │
-└───────────────────────────▲────────────────────────────────────┘
-                             │
-┌───────────────────────────┴────────────────────────────────────┐
-│                     Orchestration / Agent Layer                 │
-│  Planner Agent → Retrieval Agent → Analysis Agent →              │
-│  Validation Agent → Report-Writer Agent                         │
-└───────┬───────────────┬───────────────┬───────────────┬─────────┘
-        │               │               │               │
-  ┌─────▼─────┐   ┌─────▼──────┐  ┌─────▼──────┐  ┌─────▼─────┐
-  │  RAG /    │   │  Long-Term │  │  Structured │  │  Eval /   │
-  │ Vector DB │   │   Memory   │  │  Metadata   │  │  Observ.  │
-  │           │   │   Store    │  │   DB (SQL)  │  │  Layer    │
-  └─────▲─────┘   └────────────┘  └─────▲───────┘  └───────────┘
-        │                                │
-┌───────┴────────────────────────────────┴────────────────────────┐
-│                      Ingestion Pipeline                          │
-│ Connectors: Tickets · GitHub Issues · PRDs · Meeting Notes ·      │
-│ Release Notes · Interviews · Research Docs · Competitor Reports  │
-│ → Parse → Chunk → Embed → Tag Metadata → Store                   │
-└────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Frontend [1. Frontend Web App - React + Vite]
+        UI[Interactive UI Dashboard]
+        Tab1[Q&A Chat Feed]
+        Tab2[Deep Research Board]
+        Tab3[System Evaluations Panel]
+        Side[Sidebar - Health, Sessions, Memory]
+        DocDraw[Clickable Citation Side Drawer]
+        ThemeSw[Theme Switcher: Light/Dark]
+    end
+
+    subgraph API [2. Backend Gateway - FastAPI]
+        EndH[GET /health]
+        EndI[POST /ingest]
+        EndQ[POST /query]
+        EndR[POST /research]
+        EndM[POST & GET /memory]
+        EndE[POST /evals/run]
+    end
+
+    subgraph Agents [3. Multi-Agent Reasoning Pipeline]
+        Planner[Planner Agent]
+        Retriever[Retrieval Agent]
+        Analyst[Analysis Agent]
+        Validator[Validation Agent]
+        Writer[Report-Writer Agent]
+    end
+
+    subgraph Database [4. Hybrid Data Store]
+        SQLite[(SQLite Relational DB)]
+        Chroma[(ChromaDB Vector Store)]
+        ONNX[Cached ONNX Embedder Client]
+    end
+
+    subgraph Sources [5. Normalized Ingestion Sources]
+        S1[Support Tickets]
+        S2[GitHub Issues]
+        S3[PRDs]
+        S4[Meeting Notes]
+        S5[Release Notes]
+        S6[Customer Interviews]
+        S7[Research Docs]
+        S8[Competitor Reports]
+    end
+
+    %% Flow lines
+    UI -->|REST requests| API
+    Side -->|Health & Session memory| API
+    
+    EndI -->|Generate & Parse| Sources
+    Sources -->|Local Embeddings| ONNX
+    ONNX -->|Cosine Similarity Vectors| Chroma
+    Sources -->|Relational Metadata| SQLite
+    
+    EndQ -->|Inject Session History| SQLite
+    EndQ -->|Triggers RAG| Agents
+    EndR -->|Triggers Iterative Flow| Agents
+    
+    Agents -->|1. Planner sub-queries| Planner
+    Planner -->|2. RAG lookups| Retriever
+    Retriever -->|3. Cosine RRF Search| SQLite
+    Retriever -->|3. Dense Vector Search| Chroma
+    Retriever -->|4. Fact Compilation| Analyst
+    Analyst -->|5. Groundedness Verification| Validator
+    Validator -->|6. Compile Markdown Report| Writer
+    Writer -->|Evidence cited JSON| API
+    
+    EndE -->|Benchmark precision metrics| Database
 ```
 
 ## 2. Component Responsibilities
