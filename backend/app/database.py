@@ -30,10 +30,17 @@ def init_db() -> None:
             author TEXT,
             created_at TEXT,
             tags TEXT,          -- JSON list
-            related_ids TEXT    -- JSON list
+            related_ids TEXT,   -- JSON list
+            session_id TEXT     -- Session association
         )
     """)
     
+    # Run inline migration to add session_id if it's an existing database
+    try:
+        cursor.execute("ALTER TABLE documents ADD COLUMN session_id TEXT")
+    except sqlite3.OperationalError:
+        pass # Already altered
+        
     # Memory table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS memory (
@@ -79,8 +86,8 @@ def save_document(doc: Dict[str, Any]) -> None:
     cursor = conn.cursor()
     cursor.execute(
         """
-        INSERT OR REPLACE INTO documents (id, source_type, title, body, author, created_at, tags, related_ids)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO documents (id, source_type, title, body, author, created_at, tags, related_ids, session_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             doc["id"],
@@ -90,7 +97,8 @@ def save_document(doc: Dict[str, Any]) -> None:
             doc.get("author", ""),
             doc.get("created_at", ""),
             json.dumps(doc.get("tags", [])),
-            json.dumps(doc.get("related_ids", []))
+            json.dumps(doc.get("related_ids", [])),
+            doc.get("session_id")
         )
     )
     conn.commit()
@@ -114,7 +122,8 @@ def get_document(doc_id: str) -> Optional[Dict[str, Any]]:
         "author": row["author"],
         "created_at": row["created_at"],
         "tags": json.loads(row["tags"]) if row["tags"] else [],
-        "related_ids": json.loads(row["related_ids"]) if row["related_ids"] else []
+        "related_ids": json.loads(row["related_ids"]) if row["related_ids"] else [],
+        "session_id": row["session_id"] if "session_id" in row.keys() else None
     }
 
 def get_all_documents() -> List[Dict[str, Any]]:
@@ -290,7 +299,9 @@ def hybrid_retrieve(
     question: str,
     limit: int = 5,
     source_type: Optional[str] = None,
-    tags: Optional[List[str]] = None
+    tags: Optional[List[str]] = None,
+    uploaded_only: bool = False,
+    session_id: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     # 1. Vector Search (Semantic Similarity)
     collection = get_chroma_collection()
@@ -298,6 +309,10 @@ def hybrid_retrieve(
     chroma_where = {}
     if source_type:
         chroma_where["source_type"] = source_type
+    elif uploaded_only:
+        chroma_where["source_type"] = {"$in": ["upload_txt", "upload_json", "upload_docx", "upload_pdf"]}
+        if session_id:
+            chroma_where["session_id"] = session_id
         
     try:
         results = collection.query(
@@ -343,6 +358,11 @@ def hybrid_retrieve(
     if source_type:
         sql_query += " AND source_type = ?"
         params.append(source_type)
+    elif uploaded_only:
+        sql_query += " AND source_type LIKE 'upload_%'"
+        if session_id:
+            sql_query += " AND session_id = ?"
+            params.append(session_id)
         
     if terms:
         like_conds = []

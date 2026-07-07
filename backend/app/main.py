@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
 
 from app.synthetic_data import generate_synthetic_documents
@@ -53,6 +53,7 @@ class DocumentOut(DocumentIn):
 class QueryRequest(BaseModel):
     question: str
     session_id: str | None = None
+    uploaded_only: bool = False
 
 
 class Citation(BaseModel):
@@ -126,10 +127,12 @@ def health() -> dict[str, str]:
     tags=["Ingestion"],
 )
 def ingest(documents_payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    import os
     payload = documents_payload or {}
     documents_data = payload.get("documents")
     if documents_data is None:
-        documents_data = generate_synthetic_documents(count=1000)
+        count = 100 if os.environ.get("RENDER") else 1000
+        documents_data = generate_synthetic_documents(count=count)
 
     from app.database import save_documents_bulk, ingest_documents_chunks_bulk
 
@@ -140,6 +143,41 @@ def ingest(documents_payload: dict[str, Any] | None = None) -> dict[str, Any]:
         "ingested_count": len(documents_data),
         "documents": documents_data,
     }
+
+
+@app.get(
+    "/documents/uploaded",
+    summary="Get all uploaded documents",
+    description="Retrieve a list of metadata for all files uploaded by the user.",
+    tags=["Documents"],
+)
+def get_uploaded_documents(session_id: str | None = None):
+    from app.database import get_sqlite_conn
+    try:
+        conn = get_sqlite_conn()
+        cursor = conn.cursor()
+        if session_id:
+            cursor.execute(
+                "SELECT id, title, source_type, created_at FROM documents WHERE source_type LIKE 'upload_%' AND session_id = ? ORDER BY created_at DESC",
+                (session_id,)
+            )
+        else:
+            cursor.execute(
+                "SELECT id, title, source_type, created_at FROM documents WHERE source_type LIKE 'upload_%' ORDER BY created_at DESC"
+            )
+        rows = cursor.fetchall()
+        conn.close()
+        return [
+            {
+                "id": r["id"],
+                "title": r["title"],
+                "source_type": r["source_type"],
+                "created_at": r["created_at"]
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to query uploaded documents: {e}")
 
 
 @app.get(
@@ -198,7 +236,7 @@ def query(request: QueryRequest) -> QueryResponse:
     from app.agents import get_client
     
     try:
-        docs = hybrid_retrieve(request.question, limit=4)
+        docs = hybrid_retrieve(request.question, limit=4, uploaded_only=request.uploaded_only, session_id=request.session_id)
         if not docs:
             return QueryResponse(
                 answer="No relevant documents or evidence were found in the knowledge base.",
@@ -303,3 +341,120 @@ def run_evals() -> dict[str, Any]:
         return run_evaluation()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Evaluation execution failed: {e}")
+
+
+@app.post(
+    "/upload",
+    summary="Upload document file",
+    description="Upload a TXT, JSON, DOCX, or PDF document to parse and ingest into the SQLite + ChromaDB knowledge store.",
+    tags=["Ingestion"],
+)
+async def upload_document(file: UploadFile = File(...), session_id: str | None = None):
+    import json
+    import uuid
+    import datetime
+    import io
+    
+    filename = file.filename
+    ext = filename.split(".")[-1].lower() if "." in filename else ""
+    content = await file.read()
+    text = ""
+    
+    if ext == "txt":
+        try:
+            text = content.decode("utf-8", errors="ignore")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to read TXT file: {e}")
+            
+    elif ext == "json":
+        try:
+            data = json.loads(content.decode("utf-8", errors="ignore"))
+            if isinstance(data, dict):
+                text = data.get("body") or data.get("text") or json.dumps(data)
+            elif isinstance(data, list):
+                text = "\n".join([
+                    (d.get("body") or d.get("text") or json.dumps(d))
+                    for d in data if isinstance(d, dict)
+                ])
+            else:
+                text = str(data)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid JSON format: {e}")
+            
+    elif ext == "docx":
+        try:
+            import zipfile
+            import xml.etree.ElementTree as ET
+            
+            docx_file = io.BytesIO(content)
+            doc = zipfile.ZipFile(docx_file)
+            xml_content = doc.read('word/document.xml')
+            root = ET.fromstring(xml_content)
+            
+            paragraphs = []
+            for paragraph in root.iter('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p'):
+                texts = [node.text for node in paragraph.iter('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t') if node.text]
+                if texts:
+                    paragraphs.append(''.join(texts))
+            text = '\n'.join(paragraphs)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to parse DOCX file: {e}")
+            
+    elif ext == "pdf":
+        try:
+            from pypdf import PdfReader
+            
+            pdf_file = io.BytesIO(content)
+            reader = PdfReader(pdf_file)
+            pages_text = []
+            for page in reader.pages:
+                t = page.extract_text()
+                if t:
+                    pages_text.append(t)
+            text = "\n".join(pages_text)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to parse PDF file (make sure pypdf is installed): {e}")
+            
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported file format: {ext}")
+        
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="Uploaded file contains no readable text content.")
+        
+    # Ingest document
+    doc_id = f"uploaded_{ext}_{str(uuid.uuid4())[:8]}"
+    doc_title = filename
+    created_at = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    
+    from app.database import get_sqlite_conn, get_chroma_collection
+    
+    # 1. Write to SQLite
+    conn = get_sqlite_conn()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO documents (id, source_type, title, body, author, created_at, tags, related_ids, session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (doc_id, f"upload_{ext}", doc_title, text, "user_upload", created_at, json.dumps(["uploaded"]), json.dumps([]), session_id)
+    )
+    conn.commit()
+    conn.close()
+    
+    # 2. Write to ChromaDB (Chroma automatically computes embeddings using the configured model)
+    collection = get_chroma_collection()
+    collection.add(
+        ids=[f"{doc_id}_chunk_0"],
+        documents=[text],
+        metadatas=[{"doc_id": doc_id, "title": doc_title, "source_type": f"upload_{ext}", "session_id": session_id or ""}]
+    )
+    
+    return {
+        "status": "ok",
+        "doc_id": doc_id,
+        "filename": filename,
+        "size_bytes": len(content),
+        "text_preview": text[:200]
+    }
+
+
+
+
+

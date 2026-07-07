@@ -15,11 +15,35 @@ export async function triggerIngestion() {
   return resp.json();
 }
 
-export async function sendQuery(question, sessionId) {
+export async function uploadDocument(file, sessionId) {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  let url = `${API_BASE_URL}/upload`;
+  if (sessionId) {
+    url += `?session_id=${encodeURIComponent(sessionId)}`;
+  }
+  
+  const resp = await fetch(url, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!resp.ok) {
+    const errorData = await resp.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Upload failed');
+  }
+  return resp.json();
+}
+
+export async function sendQuery(question, sessionId, uploadedOnly = false) {
   const resp = await fetch(`${API_BASE_URL}/query`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, session_id: sessionId || null }),
+    body: JSON.stringify({ 
+      question, 
+      session_id: sessionId || null,
+      uploaded_only: uploadedOnly
+    }),
   });
   if (!resp.ok) throw new Error('Query request failed');
   return resp.json();
@@ -58,5 +82,15 @@ export async function runEvals() {
     headers: { 'Content-Type': 'application/json' },
   });
   if (!resp.ok) throw new Error('Evaluation harness failed');
+  return resp.json();
+}
+
+export async function fetchUploadedDocuments(sessionId) {
+  let url = `${API_BASE_URL}/documents/uploaded`;
+  if (sessionId) {
+    url += `?session_id=${encodeURIComponent(sessionId)}`;
+  }
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('Failed to fetch uploaded documents');
   return resp.json();
 }

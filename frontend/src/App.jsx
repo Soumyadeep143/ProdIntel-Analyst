@@ -16,7 +16,8 @@ import {
   TrendingUp,
   X,
   Sun,
-  Moon
+  Moon,
+  Upload
 } from 'lucide-react';
 import { 
   fetchHealth, 
@@ -25,7 +26,9 @@ import {
   sendResearch, 
   fetchMemory, 
   saveMemory, 
-  runEvals 
+  runEvals,
+  uploadDocument,
+  fetchUploadedDocuments
 } from './api';
 import './App.css';
 
@@ -38,6 +41,10 @@ export default function App() {
   const [isQuerying, setIsQuerying] = useState(false);
   const [isResearching, setIsResearching] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(null);
+  const [uploadedOnly, setUploadedOnly] = useState(false);
+  const [uploadedDocs, setUploadedDocs] = useState([]);
 
   const toggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
@@ -81,18 +88,29 @@ export default function App() {
   useEffect(() => {
     loadHealth();
     loadMemories();
+    loadUploadedDocs();
     const interval = setInterval(loadHealth, 15000);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
     loadMemories();
+    loadUploadedDocs();
   }, [sessionId]);
 
   useEffect(() => {
     // Scroll chat to bottom
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const loadUploadedDocs = async () => {
+    try {
+      const docs = await fetchUploadedDocuments(sessionId);
+      setUploadedDocs(docs);
+    } catch (e) {
+      console.error("Failed to load uploaded documents", e);
+    }
+  };
 
   const loadHealth = async () => {
     try {
@@ -126,6 +144,31 @@ export default function App() {
     }
   };
 
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setIsUploading(true);
+    setUploadStatus({ type: 'info', message: `Uploading ${file.name}...` });
+    
+    try {
+      const res = await uploadDocument(file, sessionId);
+      setUploadStatus({ 
+        type: 'success', 
+        message: `Successfully ingested ${res.filename}!` 
+      });
+      loadHealth();
+      loadUploadedDocs();
+    } catch (err) {
+      console.error(err);
+      setUploadStatus({ type: 'error', message: err.message || 'Upload failed.' });
+    } finally {
+      setIsUploading(false);
+      setTimeout(() => setUploadStatus(null), 5000);
+      e.target.value = null; // Reset input
+    }
+  };
+
   const handleSendQuery = async (e) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
@@ -136,7 +179,7 @@ export default function App() {
     setIsQuerying(true);
 
     try {
-      const resp = await sendQuery(userText, sessionId);
+      const resp = await sendQuery(userText, sessionId, uploadedOnly);
       setMessages(prev => [...prev, {
         role: 'assistant',
         text: resp.answer,
@@ -282,7 +325,8 @@ export default function App() {
         {/* Ingestion control */}
         <div className="glass-card" style={{ marginTop: 'auto' }}>
           <h2 className="section-title">Knowledge Base</h2>
-          <button onClick={handleIngest} disabled={isIngesting} className="btn-primary">
+          
+          <button onClick={handleIngest} disabled={isIngesting || isUploading} className="btn-primary" style={{ marginBottom: '12px', width: '100%' }}>
             {isIngesting ? (
               <RefreshCw className="animate-spin" size={16} />
             ) : (
@@ -290,6 +334,103 @@ export default function App() {
             )}
             {isIngesting ? "Ingesting..." : "Re-Ingest 1K Docs"}
           </button>
+
+          <div style={{ borderTop: '1px solid var(--glass-border)', margin: '12px 0' }}></div>
+
+          <label className="btn-primary" style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            gap: '8px', 
+            cursor: isUploading ? 'not-allowed' : 'pointer',
+            background: 'transparent',
+            border: '1px dashed var(--primary)',
+            color: 'var(--primary)',
+            padding: '10px',
+            opacity: isUploading ? 0.6 : 1
+          }}>
+            {isUploading ? <RefreshCw className="animate-spin" size={16} /> : <Upload size={16} />}
+            {isUploading ? "Uploading..." : "Upload Document"}
+            <input 
+              type="file" 
+              accept=".txt,.json,.docx,.pdf" 
+              onChange={handleFileUpload} 
+              disabled={isUploading}
+              style={{ display: 'none' }} 
+            />
+          </label>
+
+          {uploadStatus && (
+            <div style={{ 
+              marginTop: '10px', 
+              padding: '8px', 
+              borderRadius: '4px', 
+              fontSize: '0.75rem',
+              background: uploadStatus.type === 'error' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(0, 237, 100, 0.1)',
+              border: uploadStatus.type === 'error' ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(0, 237, 100, 0.2)',
+              color: uploadStatus.type === 'error' ? '#ef4444' : 'var(--primary)',
+              wordBreak: 'break-all'
+            }}>
+              {uploadStatus.message}
+            </div>
+          )}
+
+          {uploadedDocs.length > 0 && (
+            <div style={{ marginTop: '16px' }}>
+              <div style={{ 
+                fontSize: '0.7rem', 
+                fontWeight: 700, 
+                color: 'var(--text-muted)', 
+                marginBottom: '8px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}>
+                Uploaded files ({uploadedDocs.length})
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '150px', overflowY: 'auto' }}>
+                {uploadedDocs.map((doc) => {
+                  const docExt = doc.source_type.split('_')[1]?.toUpperCase() || 'TXT';
+                  return (
+                    <div 
+                      key={doc.id} 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '8px', 
+                        padding: '6px 8px', 
+                        background: 'rgba(255,255,255,0.02)', 
+                        border: '1px solid var(--glass-border)',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        color: 'var(--text-primary)'
+                      }}
+                      title={doc.title}
+                    >
+                      <FileText size={12} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                      <span style={{ 
+                        overflow: 'hidden', 
+                        textOverflow: 'ellipsis', 
+                        whiteSpace: 'nowrap',
+                        flex: 1
+                      }}>
+                        {doc.title}
+                      </span>
+                      <span style={{ 
+                        fontSize: '0.65rem', 
+                        background: 'rgba(0, 237, 100, 0.1)', 
+                        color: 'var(--primary)', 
+                        padding: '1px 4px', 
+                        borderRadius: '3px',
+                        fontWeight: 600
+                      }}>
+                        {docExt}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -386,6 +527,30 @@ export default function App() {
 
               {/* Input Composer */}
               <div className="input-composer">
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px', 
+                  marginBottom: '10px',
+                  fontSize: '0.8rem',
+                  color: 'var(--text-secondary)'
+                }}>
+                  <input 
+                    type="checkbox" 
+                    id="uploaded-only-toggle"
+                    checked={uploadedOnly}
+                    onChange={(e) => setUploadedOnly(e.target.checked)}
+                    style={{ 
+                      accentColor: 'var(--primary)',
+                      cursor: 'pointer',
+                      width: '14px',
+                      height: '14px'
+                    }}
+                  />
+                  <label htmlFor="uploaded-only-toggle" style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    Search / Chat with uploaded documents only
+                  </label>
+                </div>
                 <form onSubmit={handleSendQuery} className="composer-form">
                   <input 
                     type="text" 

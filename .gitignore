@@ -41,3 +41,9 @@ yarn-error.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Temporary testing samples
+backend/sample_kb.txt
+backend/sample_kb.json
+backend/generate_samples.py
+
