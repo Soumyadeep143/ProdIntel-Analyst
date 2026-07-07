@@ -8,10 +8,17 @@
 ![ChromaDB](https://img.shields.io/badge/ChromaDB-0080FF?style=for-the-badge)
 ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
 ![Llama 3.3](https://img.shields.io/badge/Llama_3.3-orange?style=for-the-badge)
+[![Vercel Deployment](https://img.shields.io/badge/Vercel-Deployed-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://prodintel-analyst.vercel.app)
+[![Render Deployment](https://img.shields.io/badge/Render-Deployed-%2346E3B7.svg?style=for-the-badge&logo=render&logoColor=white)](https://prodintel-analyst.onrender.com/docs)
 
 An autonomous AI-powered Product Intelligence Analyst for SaaS companies that ingests support tickets, GitHub issues, product documents (PRDs), meeting logs, and release notes to help teams analyze complaints, track trends, review system health, and generate deep research reports.
 
 The reasoning stack is powered by **Llama 3.3** via **Groq** for sub-second, highly structured agent inferences, combined with a local hybrid semantic vector (ChromaDB + SQLite) search engine.
+
+### 🌐 Live Cloud Deployments
+* **Live Web Dashboard (Vercel)**: [https://prodintel-analyst.vercel.app](https://prodintel-analyst.vercel.app)
+* **Live REST API Docs (Render Swagger)**: [https://prodintel-analyst.onrender.com/docs](https://prodintel-analyst.onrender.com/docs)
+* **Live API Health Check (Render)**: [https://prodintel-analyst.onrender.com/health](https://prodintel-analyst.onrender.com/health)
 
 ---
 
