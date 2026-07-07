@@ -52,6 +52,9 @@ def init_db() -> None:
         )
     """)
     
+    # Clear uploaded documents on server startup to maintain temporary life cycle
+    cursor.execute("DELETE FROM documents WHERE source_type LIKE 'upload_%'")
+    
     conn.commit()
     conn.close()
 

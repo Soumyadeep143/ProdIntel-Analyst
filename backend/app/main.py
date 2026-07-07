@@ -158,12 +158,12 @@ def get_uploaded_documents(session_id: str | None = None):
         cursor = conn.cursor()
         if session_id:
             cursor.execute(
-                "SELECT id, title, source_type, created_at FROM documents WHERE source_type LIKE 'upload_%' AND session_id = ? ORDER BY created_at DESC",
+                "SELECT MIN(id) as id, title, source_type, MIN(created_at) as created_at FROM documents WHERE source_type LIKE 'upload_%' AND session_id = ? GROUP BY title ORDER BY created_at DESC",
                 (session_id,)
             )
         else:
             cursor.execute(
-                "SELECT id, title, source_type, created_at FROM documents WHERE source_type LIKE 'upload_%' ORDER BY created_at DESC"
+                "SELECT MIN(id) as id, title, source_type, MIN(created_at) as created_at FROM documents WHERE source_type LIKE 'upload_%' GROUP BY title ORDER BY created_at DESC"
             )
         rows = cursor.fetchall()
         conn.close()
@@ -428,22 +428,48 @@ async def upload_document(file: UploadFile = File(...), session_id: str | None =
     
     from app.database import get_sqlite_conn, get_chroma_collection
     
-    # 1. Write to SQLite
+    # Split text into chunks of 1000 characters with 200 characters overlap
+    chunk_size = 1000
+    overlap = 200
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunks.append(text[start:end])
+        if end >= len(text):
+            break
+        start += chunk_size - overlap
+
+    chunk_ids = [f"{doc_id}_chunk_{i}" for i in range(len(chunks))]
+    chunk_metadatas = [
+        {
+            "doc_id": doc_id,
+            "title": doc_title,
+            "source_type": f"upload_{ext}",
+            "session_id": session_id or ""
+        }
+        for _ in range(len(chunks))
+    ]
+
+    from app.database import get_sqlite_conn, get_chroma_collection
+    
+    # 1. Write to SQLite in chunks
     conn = get_sqlite_conn()
     cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO documents (id, source_type, title, body, author, created_at, tags, related_ids, session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (doc_id, f"upload_{ext}", doc_title, text, "user_upload", created_at, json.dumps(["uploaded"]), json.dumps([]), session_id)
-    )
+    for i, chunk in enumerate(chunks):
+        cursor.execute(
+            "INSERT INTO documents (id, source_type, title, body, author, created_at, tags, related_ids, session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (chunk_ids[i], f"upload_{ext}", doc_title, chunk, "user_upload", created_at, json.dumps(["uploaded"]), json.dumps([]), session_id)
+        )
     conn.commit()
     conn.close()
     
-    # 2. Write to ChromaDB (Chroma automatically computes embeddings using the configured model)
+    # 2. Write to ChromaDB in chunks (Chroma automatically computes embeddings using the configured model)
     collection = get_chroma_collection()
     collection.add(
-        ids=[f"{doc_id}_chunk_0"],
-        documents=[text],
-        metadatas=[{"doc_id": doc_id, "title": doc_title, "source_type": f"upload_{ext}", "session_id": session_id or ""}]
+        ids=chunk_ids,
+        documents=chunks,
+        metadatas=chunk_metadatas
     )
     
     return {

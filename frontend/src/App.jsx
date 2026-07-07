@@ -35,7 +35,7 @@ import './App.css';
 export default function App() {
   const [theme, setTheme] = useState('dark');
   const [activeTab, setActiveTab] = useState('chat');
-  const [sessionId, setSessionId] = useState('session_001');
+  const [sessionId, setSessionId] = useState(() => 'session_' + Math.random().toString(36).substring(2, 9));
   const [dbHealth, setDbHealth] = useState({ status: 'ok', sqlite: 'ok', chromadb: 'ok' });
   const [isIngesting, setIsIngesting] = useState(false);
   const [isQuerying, setIsQuerying] = useState(false);
