@@ -75,8 +75,18 @@ _embedding_function = None
 def get_embedding_function():
     global _embedding_function
     if _embedding_function is None:
-        from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
-        _embedding_function = ONNXMiniLM_L6_V2()
+        import os
+        if os.environ.get("RENDER") == "true" or os.environ.get("RENDER"):
+            # Render free-tier is restricted to 512MB RAM. Loading the ONNX runtime library
+            # spikes memory usage and triggers OOM process termination. We use a zero-RAM
+            # mock embedding fallback in the cloud since SQLite keyword search performs RAG context extraction.
+            class MockEmbeddingFunction:
+                def __call__(self, input: list[str]) -> list[list[float]]:
+                    return [[0.0] * 384 for _ in input]
+            _embedding_function = MockEmbeddingFunction()
+        else:
+            from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
+            _embedding_function = ONNXMiniLM_L6_V2()
     return _embedding_function
 
 def get_chroma_collection():
