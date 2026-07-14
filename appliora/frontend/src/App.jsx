@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createJob, deleteJob, extractJob, listJobs } from './api'
+import Mascot from './Mascot'
 
 const EMPTY_DRAFT = {
   url: '',
@@ -210,6 +211,31 @@ export default function App() {
   const updateDraft = (field) => (event) =>
     setDraft((current) => ({ ...current, [field]: event.target.value }))
 
+  // Applio the mascot reacts to whatever is happening right now.
+  let mascotMood = 'idle'
+  let mascotMessage = ''
+  if (fetching) {
+    mascotMood = 'searching'
+    mascotMessage = 'Reading the job page for you…'
+  } else if (saving) {
+    mascotMood = 'searching'
+    mascotMessage = 'Pinning it to the board…'
+  } else if (error) {
+    mascotMood = 'sad'
+    mascotMessage = 'Hmm, that didn’t work. Mind checking the details?'
+  } else if (toast) {
+    mascotMood = 'happy'
+    mascotMessage = 'Shared! Your friends can see it now 🎉'
+  } else if (draft) {
+    mascotMood = 'idle'
+    mascotMessage = draft.title
+      ? 'Found it! Give the details a look, then hit Share.'
+      : 'That page kept its secrets — fill the details in and share anyway!'
+  } else if (!loading && jobs.length === 0 && !search) {
+    mascotMood = 'waving'
+    mascotMessage = "Hi, I'm Applio! Paste a job link and I'll fetch the details."
+  }
+
   return (
     <div className="page">
       <header className="topbar">
@@ -363,6 +389,8 @@ export default function App() {
       <footer className="pagefoot">
         Appliora · built for friends who job-hunt together
       </footer>
+
+      <Mascot mood={mascotMood} message={mascotMessage} />
     </div>
   )
 }

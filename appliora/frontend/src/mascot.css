@@ -1,0 +1,316 @@
+/* Applio the mascot — pure CSS animations, mood-driven. */
+
+.mascot {
+  position: fixed;
+  right: 20px;
+  bottom: 16px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  pointer-events: none;
+  user-select: none;
+}
+
+.mascot-svg {
+  overflow: visible;
+}
+
+/* ---------- speech bubble ---------- */
+.mascot-bubble {
+  max-width: 230px;
+  margin-bottom: 6px;
+  margin-right: 8px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #e3e5ef);
+  border-radius: 14px 14px 4px 14px;
+  box-shadow: 0 4px 14px rgba(28, 30, 38, 0.14);
+  padding: 9px 13px;
+  font-size: 0.83rem;
+  color: var(--ink, #1c1e26);
+  animation: bubble-pop 0.28s ease-out;
+}
+
+@keyframes bubble-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- idle: float + blink ---------- */
+.m-body-group {
+  animation: m-float 3.2s ease-in-out infinite;
+  transform-origin: 60px 88px;
+}
+
+@keyframes m-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.m-shadow {
+  animation: m-shadow-pulse 3.2s ease-in-out infinite;
+  transform-origin: 60px 122px;
+}
+
+@keyframes m-shadow-pulse {
+  0%,
+  100% {
+    transform: scaleX(1);
+  }
+  50% {
+    transform: scaleX(0.85);
+  }
+}
+
+.m-eye {
+  animation: m-blink 4.5s infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+@keyframes m-blink {
+  0%,
+  93%,
+  100% {
+    transform: scaleY(1);
+  }
+  95%,
+  97% {
+    transform: scaleY(0.12);
+  }
+}
+
+.m-antenna-tip {
+  animation: m-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes m-glow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.m-belly {
+  animation: m-glow 2.4s ease-in-out 1.2s infinite;
+}
+
+/* arms rest by default */
+.m-arm-left,
+.m-arm-right {
+  transform-origin: 30px 72px;
+  transition: transform 0.3s;
+}
+
+.m-arm-right {
+  transform-origin: 90px 72px;
+}
+
+/* mood-specific parts hidden unless active */
+.m-magnifier,
+.m-sparkles,
+.m-eye-sad,
+.m-eye-happy,
+.m-mouth-happy,
+.m-mouth-sad,
+.m-mouth-o {
+  opacity: 0;
+}
+
+/* ---------- waving ---------- */
+.mood-waving .m-arm-left {
+  animation: m-wave 1s ease-in-out infinite;
+}
+
+@keyframes m-wave {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  30% {
+    transform: rotate(-38deg);
+  }
+  60% {
+    transform: rotate(8deg);
+  }
+}
+
+/* ---------- searching ---------- */
+.mood-searching .m-magnifier {
+  opacity: 1;
+}
+
+.mood-searching .m-arm-right {
+  animation: m-scan 1.4s ease-in-out infinite;
+}
+
+@keyframes m-scan {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-24deg);
+  }
+}
+
+.mood-searching .m-mouth-idle {
+  opacity: 0;
+}
+
+.mood-searching .m-mouth-o {
+  opacity: 1;
+}
+
+.mood-searching .m-eyes {
+  animation: m-look 1.4s ease-in-out infinite;
+}
+
+@keyframes m-look {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  35% {
+    transform: translateX(3px);
+  }
+  70% {
+    transform: translateX(-3px);
+  }
+}
+
+/* ---------- happy ---------- */
+.mood-happy .m-body-group {
+  animation: m-bounce 0.55s ease-in-out infinite;
+}
+
+@keyframes m-bounce {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  40% {
+    transform: translateY(-9px) scale(1.03);
+  }
+}
+
+.mood-happy .m-eye {
+  opacity: 0;
+  animation: none;
+}
+
+.mood-happy .m-eye-happy,
+.mood-happy .m-mouth-happy,
+.mood-happy .m-sparkles {
+  opacity: 1;
+}
+
+.mood-happy .m-mouth-idle {
+  opacity: 0;
+}
+
+.m-spark {
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+.mood-happy .m-spark {
+  animation: m-twinkle 0.9s ease-in-out infinite;
+}
+
+.mood-happy .s2 {
+  animation-delay: 0.25s;
+}
+
+.mood-happy .s3 {
+  animation-delay: 0.5s;
+}
+
+@keyframes m-twinkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.4) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15) rotate(25deg);
+  }
+}
+
+/* ---------- sad ---------- */
+.mood-sad .m-body-group {
+  animation: m-droop 3.2s ease-in-out infinite;
+}
+
+@keyframes m-droop {
+  0%,
+  100% {
+    transform: translateY(2px) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(4px) rotate(2deg);
+  }
+}
+
+.mood-sad .m-eye {
+  opacity: 0;
+  animation: none;
+}
+
+.mood-sad .m-eye-sad,
+.mood-sad .m-mouth-sad {
+  opacity: 1;
+}
+
+.mood-sad .m-mouth-idle {
+  opacity: 0;
+}
+
+.mood-sad .m-antenna {
+  transform: rotate(-8deg);
+  transform-origin: 60px 22px;
+}
+
+.mood-sad .m-cheek {
+  opacity: 0.3;
+}
+
+/* ---------- accessibility & small screens ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .mascot *,
+  .mascot-bubble {
+    animation: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .mascot {
+    right: 10px;
+    bottom: 10px;
+  }
+
+  .mascot-svg {
+    width: 68px;
+    height: 74px;
+  }
+
+  .mascot-bubble {
+    max-width: 170px;
+    font-size: 0.78rem;
+  }
+}
