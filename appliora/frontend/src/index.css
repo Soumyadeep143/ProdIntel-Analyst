@@ -218,7 +218,14 @@ button.ghost:hover {
 
 .draft-actions {
   display: flex;
+  align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sharing-as {
+  font-size: 0.82rem;
+  color: var(--muted);
 }
 
 /* ---------- banners ---------- */
@@ -359,8 +366,29 @@ button.ghost:hover {
 }
 
 .shared-by {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 0.82rem;
   color: var(--muted);
+}
+
+.shared-by strong {
+  color: var(--ink);
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.8rem;
+  flex-shrink: 0;
 }
 
 .apply-btn {

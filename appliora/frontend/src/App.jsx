@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createJob, deleteJob, extractJob, listJobs } from './api'
 
 const EMPTY_DRAFT = {
@@ -86,6 +86,9 @@ function JobCard({ job, onDelete }) {
 
       <footer className="job-card-foot">
         <span className="shared-by">
+          <span className="avatar" aria-hidden="true">
+            {(job.shared_by || 'A').trim().charAt(0).toUpperCase()}
+          </span>
           Shared by <strong>{job.shared_by}</strong> · {timeAgo(job.created_at)}
         </span>
         <a className="apply-btn" href={job.url} target="_blank" rel="noreferrer">
@@ -109,14 +112,22 @@ export default function App() {
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
 
+  // Monotonic id so a slow, older /api/jobs response can never
+  // overwrite the result of a newer one (e.g. share vs. search races).
+  const refreshSeq = useRef(0)
+
   const refresh = useCallback(async (query = '') => {
+    const seq = ++refreshSeq.current
     try {
-      setJobs(await listJobs(query))
+      const result = await listJobs(query)
+      if (seq !== refreshSeq.current) return
+      setJobs(result)
       setError('')
     } catch (err) {
+      if (seq !== refreshSeq.current) return
       setError(`Could not load jobs: ${err.message}`)
     } finally {
-      setLoading(false)
+      if (seq === refreshSeq.current) setLoading(false)
     }
   }, [])
 
@@ -304,6 +315,15 @@ export default function App() {
                 >
                   Cancel
                 </button>
+                <span className="sharing-as">
+                  {name.trim() ? (
+                    <>
+                      Sharing as <strong>{name.trim()}</strong>
+                    </>
+                  ) : (
+                    'Tip: add your name (top right) so friends know who shared this'
+                  )}
+                </span>
               </div>
             </form>
           )}
